@@ -1,5 +1,7 @@
 require 'xmpp4r'
 require 'proxy'
+require 'pp'
+require 'hpricot'
 
 class ClientServer < Jabber::Stream
   ##
@@ -15,6 +17,30 @@ class ClientServer < Jabber::Stream
   # sock:: [TCPSocket] Client stream
   def initialize(sock)
     puts "New stream: #{sock.peeraddr[2]}:#{sock.peeraddr[1]} (#{sock.peeraddr[3]})"
+
+    c = sock
+
+    request = []
+    done = false
+    while c.gets
+      request << $_
+      break if $_ =~ /^\s*$/
+    end
+
+    headers = {}
+    request.each do |line|
+      if line =~ /:\s/
+        k, v = line.strip.split(/:\s/)
+        headers[k] = v
+      end
+    end
+
+    pp headers
+
+    c.puts("HTTP/1.0 200 Connection established\r")
+    c.puts("Proxy-agent: Rubber/0.1\r")
+    c.puts("\r")
+    c.puts("\r")
     
     @server_conn = nil
     @server_host = nil
@@ -42,6 +68,9 @@ class ClientServer < Jabber::Stream
   ##
   # Handle stanzas received from client stream
   def handle_stanza(stanza)
+    puts '--> handle client stanza'
+    print '    '
+    puts stanza
     if stanza.name == 'stream' and stanza.prefix == 'stream'
       # The opening tag carries a to='...' attribute,
       # letting us know to what server to connect
@@ -79,12 +108,16 @@ class ClientServer < Jabber::Stream
   ##
   # Handle stanzas received from server stream
   def handle_server_stanza(stanza)
+    puts '<-- handle server stanza'
+    print '    '
+    puts stanza
     if stanza.name == 'stream' and stanza.prefix == 'stream'
       # The <stream:stream> opening tag
       send(stanza.to_s.sub(/\/>$/, '>'))
     else
       # Stanzas are only sent if no user-script callback returns +true+
       unless Proxy::process_server(stanza, self)
+        stanza.delete_element('//starttls')
         send(stanza)
       end
     end

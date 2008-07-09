@@ -15,7 +15,7 @@ Dir.new('scripts').each { |file|
 }
 
 # Open the proxy's server socket
-server = TCPServer.new(5224)
+server = TCPServer.new(9999)
 server.listen(10)
 
 # Main loop
